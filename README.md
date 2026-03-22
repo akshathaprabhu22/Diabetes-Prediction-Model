@@ -103,6 +103,7 @@ early detection and supporting preventive healthcare decisions.
 ---
 
 ## 🚀 How to Run
+
 ```bash
 # Clone the repository
 git clone https://github.com/akshathaprabhu22/Diabetes-Prediction-Model.git
@@ -116,6 +117,155 @@ pip install pandas numpy matplotlib seaborn scikit-learn statsmodels
 # Open the notebook
 jupyter notebook "Diabetes Prediction Model.ipynb"
 ```
+
+---
+
+## 🔄 Future Improvements
+
+### 1. Model Upgrades — Go Beyond Logistic Regression
+
+The current best model sits at 74.2%. Adding ensemble models is expected to push this to 80–85% based on published benchmarks on this dataset.
+
+```python
+from xgboost import XGBClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+# XGBoost — best performer for mixed feature types
+xgb = XGBClassifier(n_estimators=100, max_depth=5, learning_rate=0.1)
+xgb.fit(X_train, y_train)
+print("XGBoost Accuracy:", accuracy_score(y_test, xgb.predict(X_test)))
+
+# Random Forest
+rf = RandomForestClassifier(n_estimators=200, random_state=42)
+rf.fit(X_train, y_train)
+print("Random Forest Accuracy:", accuracy_score(y_test, rf.predict(X_test)))
+```
+
+---
+
+### 2. Fix Class Imbalance with SMOTE
+
+The original BRFSS dataset is 86.1% non-diabetic. Even the balanced split used here could benefit from synthetic oversampling to improve recall on the diabetic class.
+
+```python
+from imblearn.over_sampling import SMOTE
+
+sm = SMOTE(random_state=42)
+X_resampled, y_resampled = sm.fit_resample(X_train, y_train)
+
+logreg.fit(X_resampled, y_resampled)
+```
+
+---
+
+### 3. Hyperparameter Tuning
+
+The current KNN uses `k=2` (likely overfitting) and Logistic Regression throws a `ConvergenceWarning` due to default `max_iter`. Both need tuning.
+
+```python
+from sklearn.model_selection import GridSearchCV
+
+# Find optimal k for KNN
+knn_params = {'n_neighbors': [3, 5, 7, 10, 15, 20]}
+knn_grid = GridSearchCV(KNeighborsClassifier(), knn_params, cv=5, scoring='f1')
+knn_grid.fit(X_train, y_train)
+print("Best k:", knn_grid.best_params_)
+
+# Fix Logistic Regression convergence warning
+logreg = LogisticRegression(max_iter=1000, solver='saga')
+logreg.fit(X_train, y_train)
+```
+
+---
+
+### 4. Replace Manual Feature Selection with RFE
+
+Features are currently dropped manually based on correlation thresholds. Recursive Feature Elimination (RFE) provides a more principled, automated approach.
+
+```python
+from sklearn.feature_selection import RFE
+
+rfe = RFE(estimator=LogisticRegression(max_iter=1000), n_features_to_select=10)
+rfe.fit(X_train, y_train)
+
+selected_features = X_train.columns[rfe.support_]
+print("RFE Selected Features:", list(selected_features))
+```
+
+---
+
+### 5. Add Cross-Validation
+
+Results are currently based on a single 70/30 train-test split, which can vary depending on the random state. 10-fold cross-validation provides a more reliable accuracy estimate.
+
+```python
+from sklearn.model_selection import cross_val_score
+
+cv_scores = cross_val_score(logreg, X, y, cv=10, scoring='accuracy')
+print(f"10-Fold CV Accuracy: {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
+```
+
+---
+
+### 6. Production-Ready Data Ingestion
+
+The dataset is currently loaded from a static local CSV. Here's how to make ingestion automated and scalable.
+
+```python
+# Option 1: Load directly from Kaggle API
+import kaggle
+kaggle.api.dataset_download_files(
+    'alexteboul/diabetes-health-indicators-dataset',
+    path='./data', unzip=True
+)
+
+# Option 2: Load from AWS S3 staging bucket
+import boto3
+import pandas as pd
+
+s3 = boto3.client('s3')
+s3.download_file('your-bucket', 'diabetes_data.csv', '/tmp/diabetes_data.csv')
+df = pd.read_csv('/tmp/diabetes_data.csv')
+```
+
+**Recommended pipeline architecture:**
+```
+CDC BRFSS Source → Kaggle API → AWS S3 (Raw) → ETL Script → Model Training
+```
+
+---
+
+### 7. Model Deployment
+
+The project currently ends at evaluation. Save the trained model so it can be deployed and used for inference on new patient data.
+
+```python
+import joblib
+
+# Save trained model
+joblib.dump(logreg, 'diabetes_model.pkl')
+
+# Load and predict on new patient data
+model = joblib.load('diabetes_model.pkl')
+new_patient = [[1, 1, 28.5, 0, 0, 1, 0, 3, 8, 6]]  # example feature values
+prediction = model.predict(new_patient)
+print("Diabetes Risk:", "Yes" if prediction[0] == 1 else "No")
+```
+
+---
+
+### 📋 Improvement Summary
+
+| Improvement | Effort | Expected Impact |
+|---|---|---|
+| Add XGBoost / Random Forest | Low | +5–10% accuracy |
+| Fix convergence warning (`max_iter`) | Very Low | Cleaner, stable results |
+| Tune KNN `k` value via GridSearchCV | Low | Better KNN baseline |
+| Add 10-fold cross-validation | Low | More reliable accuracy estimate |
+| Add SMOTE for class imbalance | Medium | Better recall on diabetic class |
+| Recursive Feature Elimination (RFE) | Medium | More principled feature selection |
+| Kaggle API / S3 data ingestion | Medium | Automated, scalable pipeline |
+| Save model with joblib | Very Low | Deployable artifact |
 
 ---
 
